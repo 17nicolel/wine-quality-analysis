@@ -1,68 +1,73 @@
-
+import numpy as np
 import pandas as pd
 import os
-
-#1. Read the dataset into a dataframe. Be sure to import the header. (2)
-winedata=pd.read_csv('wineQualityReds(1).csv',header=0)
-
-#2. Drop Wine from the dataframe. (1)
-winedata.drop(['Wine'],axis=1,inplace=True)
-
-#3. print(winedata.head())
-print(winedata.head())
-
-#4. Drop Quality from dataframe. (1)
-quality=winedata['quality']
-winedata.drop(['quality'],axis=1,inplace=True)
-
-#5. Print the dataframe and Quality. (1)
-print(winedata.head())
-print(quality)
-
-#6. Normalize all columns of the dataframe. Use the Normalizer class from sklearn.preprocessing.
-from sklearn.preprocessing import Normalizer
-mynormalizer=Normalizer()
-winedatanorm=pd.DataFrame(mynormalizer.transform(winedata),columns=winedata.columns)
-
-#7. Print the normalized dataframe. (1)
-print(winedatanorm)
-
-#8. Create a range of k values from 1:11 for k-means clustering. Iterate on the k values and store the
-#inertia for each clustering in a list. (2)
-from sklearn.cluster import KMeans
-ks=range(1,11)
-inertia=[]
-for k in ks:
-    model=KMeans(n_clusters=k)
-    model.fit(winedatanorm)
-    inertia.append(model.inertia_)
-
-#9. Plot the chart of inertia vs number of clusters. (2)
 import matplotlib.pyplot as plt
-plt.plot(ks,inertia,'-o')
-plt.xlabel('# of clusters (k)')
-plt.ylabel('Inertia')
-plt.xticks(ks)
+import seaborn as sb
+
+#A. Load the data from the file winequality.csv.
+winequality=pd.read_csv('winequality.csv')
+print(winequality.head())
+
+#B. Standardize all variables other than Quality.
+X=winequality.iloc[:,0:11]
+y=winequality.iloc[:,11]
+
+from sklearn.preprocessing import StandardScaler
+scaler=StandardScaler()
+X=pd.DataFrame(scaler.fit_transform(X),columns = X.columns)
+print(X.head())
+
+#C. Partition the dataset
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test=train_test_split(X,y,test_size=0.2,random_state=2020,stratify=y)
+X_trainA, X_trainB, y_trainA, y_trainB = train_test_split(X_train, y_train, test_size=0.25, random_state=2020, stratify=y_train)
+
+#D. Build a KNN classification model to predict Quality based on all the remaining numeric variables.
+#E. Iterate on K ranging from 1 to 30. Plot the accuracy for the train A and train B datasets.
+from sklearn.neighbors import KNeighborsClassifier
+
+
+neighbors=range(1,31)
+accuracyTrainA=[]
+accuracyTrainB=[]
+
+for k in neighbors:
+    KNN=KNeighborsClassifier(n_neighbors=k)
+    KNN.fit(X_trainA,y_trainA)
+    accuracy1=KNN.score(X_trainA,y_trainA)
+    accuracyTrainA.append(accuracy1)
+    accuracy2 = KNN.score(X_trainB, y_trainB)
+    accuracyTrainB.append(accuracy2)
+
+plt.plot(neighbors,accuracyTrainA,label='TrainingA Accuracy')
+plt.plot(neighbors,accuracyTrainB,label='TrainingB Accuracy')
+plt.xticks(neighbors)
+plt.legend()
+plt.title('KNN: Varying Number of Neighbors')
+plt.xlabel('k= Number of Neighbors')
+plt.ylabel('Accuracy')
 plt.show()
 
-#10. What K (number of clusters) would you pick for k-means? (1)
-#I pick 6.
+#F. Which value of k produced the best accuracy in the train A and train B data sets?
+#choose 27 for best value of k
 
-#11. Now cluster the wines into K clusters. Use random_state = 2020 when you instantiate the kmeans model.
-#Assign the respective cluster number to each wine. Print the dataframe showing the cluster number for each wine. (2)
-model=KMeans(n_clusters=6,random_state=2020)
-model.fit(winedatanorm)
-print(model.labels_)
-winedatanorm['Clusters']=pd.Series(model.labels_)
-print(winedatanorm)
+#G. Generate predictions for the test partition with the chosen value of k. Print the confusion matrix of the actual vs predicted wine quality.
+from sklearn import metrics
+from sklearn.metrics import plot_confusion_matrix
 
-#12. Add the quality back to the dataframe. (1)
-winedatanormquality=pd.concat([winedatanorm,quality],axis=1)
-print(winedatanormquality)
+model=KNeighborsClassifier(n_neighbors=27)
+model.fit(X_trainA,y_trainA)
+y_pred = model.predict(X_test)
+confusionmatrix = metrics.confusion_matrix(y_test, y_pred)
+print(confusionmatrix)
+plot_confusion_matrix(model, X_test, y_test)
+plt.show()
 
-#13. Now print a crosstab (from Pandas) of cluster number vs quality. Comment if the clusters
-#represent the quality of wine. (3)
-print(pd.crosstab(winedatanormquality['quality'],winedatanormquality['Clusters']))
-print(pd.crosstab(winedatanormquality['quality'],winedatanormquality['Clusters'],normalize='columns'))
-#the clusters do not represent the quality of wine because for each cluster there is no obvious dominant number of a different quality.
-#Most of the clusters are all focused on quality 6.
+#H. Print the test dataframe with the added columns “Quality” and “Predicted Quality”
+testdataframe=X_test
+testdataframe['Quality']=y_test
+testdataframe['Predicted Quality']=y_pred
+print(testdataframe)
+
+#I. Print the accuracy of model on the test dataset.
+print(metrics.accuracy_score(y_test, y_pred))
